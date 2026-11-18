@@ -1,0 +1,93 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "1000:1000"
+    command:
+      - celery
+      - -A
+      - engine.celery_app
+      - worker
+      - -Q
+      - fast,standard,bulk
+      - --concurrency=4
+      - --pool=threads
+      - --loglevel=INFO
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CRAWL_STATE_REDIS_URL: redis://redis:6379/2
+      SCHEDULER_TICK_SECONDS: "86400"
+      CELERY_WORKER_POOL: threads
+      JOB_RETRY_BASE_DELAY: "10"
+      TOR_HTTP_PROXY: "${TOR_HTTP_PROXY:-http://127.0.0.1:8118}"
+      I2P_HTTP_PROXY: "${I2P_HTTP_PROXY:-http://127.0.0.1:4444}"
+    volumes:
+      - ./crawl_output:/app/crawl_output
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - celery -A engine.celery_app inspect ping --timeout=5 2>/dev/null | grep -q pong
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - celery
+      - -A
+      - engine.celery_app
+      - beat
+      - --schedule=/var/lib/celery/celerybeat-schedule
+      - --loglevel=INFO
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CRAWL_STATE_REDIS_URL: redis://redis:6379/2
+      SCHEDULER_TICK_SECONDS: "86400"
+    volumes:
+      - ./crawl_output:/app/crawl_output
+      - scheduler-data:/var/lib/celery
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - tr '\000' ' ' < /proc/1/cmdline | grep -q beat
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  scheduler-data:
