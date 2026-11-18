@@ -875,7 +875,7 @@ regularly: dead letters are not replayed automatically.
 `python validate_engine.py [--quick] [--e2e] [--live]` runs the engine against a local test server that
 simulates good and bad sources and prints a pass/fail report (see the script's header for details).
 
-## 24. Week 8 Recovery and Benchmarking
+## 24. Recovery and Benchmarking
 
 An interrupted crawl remains marked in progress until a worker resumes it. The scheduler treats a
 stale or invalid start timestamp as interrupted, bypasses the normal crawl interval, and queues a
