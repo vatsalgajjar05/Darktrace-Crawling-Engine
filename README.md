@@ -896,7 +896,7 @@ crawl with a saved pending-URL frontier and verifies that the unfinished child i
 refetching the completed seed. The benchmark uses a local test server; results are a repeatable local
 baseline, not a claim about throughput against external sites.
 
-## 25. Week 9-12 Finalization
+## 25. Finalization
 
 Recovery events are append-only JSON Lines written to `crawl_output/recovery_events.jsonl`. Each event
 contains `source_name`, `job_id`, `timestamp`, `outcome`, and `reason`. Recovery logging failures are
@@ -931,50 +931,6 @@ The P2-to-P4 handoff remains `crawl_results.jsonl`, raw HTML/text evidence under
 dead-letter JSONL records, and the Redis source-state hash. Recovery events are an additional audit
 artifact and do not replace or modify P2-to-P4 crawl-result records.
 
-## 26. Verified Acceptance Summary (2026-11-18)
-
-### Docker and live services
-
-```powershell
-docker compose config
-docker compose build
-docker compose up -d
-docker compose ps
-docker compose exec redis redis-cli ping
-docker compose exec worker celery -A engine.celery_app inspect ping
-```
-
-Observed: Redis, worker, and scheduler were healthy. Redis returned `PONG`; Celery returned `pong`.
-
-### Authorized configured sources
-
-The actual `sources.yaml` inventory contained:
-
-| Source | Enabled | Priority | Configured URL | Result |
-|---|---|---|---|---|
-| `news_source_1` | true | `standard` | `https://pypi.org/` | PASS, HTTP 200 |
-| `paste_source_1` | true | `fast` | `https://pypi.org/search/?q=example` | PASS, HTTP 200 |
-| `marketplace_source_1` | true | `bulk` | `https://pypi.org/` | PASS, HTTP 200 |
-| `onion_source_1` | false | `bulk` | `.onion` placeholder | NOT TESTED; no authorized target or Tor gateway configured |
-
-Post-fix Celery job IDs:
-
-- `news_source_1`: `87efaf34-07e3-46d1-a8c5-8880ce10fef7`
-- `paste_source_1`: `d238a1d0-2937-4609-b060-c3f51eb539e3`
-- `marketplace_source_1`: `fbb3bf33-9806-4b2e-af74-0bb61c09ed6a`
-
-All three jobs completed successfully with HTTP 200 and no post-fix retries.
-
-### Incremental and recovery checks
-
-- Unit regression suite: **PASS**, 24/24 tests.
-- JSONL crawl log: **PASS**, every non-empty line parsed successfully.
-- Redis temporary outage: **PASS**, Redis restored and returned `PONG`.
-- Worker restart: **PASS**, the restarted worker returned Celery `pong`.
-- Repeated `news_source_1` crawl: **PASS**, HTTP 304, `unchanged=True`, prior hash preserved.
-- Malformed checkpoint, recovery event I/O, retry limit, scheduler Redis-outage and stale/recovery unit checks: **PASS**.
-- `.onion` source: **NOT TESTED** because it is disabled and no real authorized target/Tor gateway is configured.
-- P1 integration: **BLOCKED**, no P1 API, credentials, contract or production P1 dependency was available.
 
 ### Measured benchmark note
 
